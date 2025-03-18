@@ -1,9 +1,12 @@
 import iziToast from 'izitoast';
 import 'izitoast/dist/css/iziToast.min.css';
-import SimpleLightbox from 'simplelightbox';
-import 'simplelightbox/dist/simple-lightbox.min.css';
 import { fetchImg } from './js/pixabay-api';
-import { createGallery, clearGallery } from './js/render-functions';
+import {
+  createGallery,
+  clearGallery,
+  initLightbox,
+  refreshLightbox,
+} from './js/render-functions';
 
 const form = document.querySelector('.form');
 const loader = document.querySelector('.loader');
@@ -31,19 +34,6 @@ const showError = message =>
     maxWidth: '322px',
   });
 const showInfo = message => iziToast.info({ message, position: 'topRight' });
-
-const initLightbox = () => {
-  lightbox = new SimpleLightbox('.gallery-link', {
-    captionsData: 'alt',
-    captionDelay: 250,
-  });
-};
-
-const refreshLightbox = () => {
-  if (lightbox) {
-    lightbox.refresh();
-  }
-};
 
 const scrollToNextGroup = () => {
   const firstCard = gallery.firstElementChild;
@@ -91,6 +81,7 @@ async function searchImg(event) {
     }
   } catch (error) {
     showError('Error!');
+    console.log('error', error);
   } finally {
     hideElement(loader);
   }
