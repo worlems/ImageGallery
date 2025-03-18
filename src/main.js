@@ -1,54 +1,126 @@
-import pixApi from './js/pixabay-api.js';
-import renderImages from './js/render-functions.js';
 import iziToast from 'izitoast';
 import 'izitoast/dist/css/iziToast.min.css';
+import SimpleLightbox from 'simplelightbox';
+import 'simplelightbox/dist/simple-lightbox.min.css';
+import { fetchImg } from './js/pixabay-api';
+import { createGallery, clearGallery } from './js/render-functions';
 
-const form = document.querySelector('form');
-const input = document.querySelector('input[data-search]');
-const loader = document.querySelector('.loader-div');
-const list = document.querySelector('.gallery');
+const form = document.querySelector('.form');
+const loader = document.querySelector('.loader');
+const gallery = document.querySelector('.gallery');
+const btnMore = document.querySelector('.load-more');
 
-form.addEventListener('submit', e => {
-  e.preventDefault();
-  loader.style.visibility = 'visible';
-  const search = input.value.trim();
-  list.innerHTML = '';
-  if (search === '') {
-    iziToast.error({
-      message: 'The input should not be empty',
-    });
+let lightbox = null;
+let currentPage = 1;
+let perPage = 15;
+let currentQuery = '';
+
+const hideElement = element => (element.hidden = true);
+const showElement = element => (element.hidden = false);
+
+const showWarning = message =>
+  iziToast.warning({ message, position: 'topRight' });
+const showError = message =>
+  iziToast.error({
+    message,
+    position: 'topRight',
+    backgroundColor: '#ef4040',
+    messageColor: '#fafafb',
+    messageSize: '16px',
+    titleColor: '#ffffff',
+    maxWidth: '322px',
+  });
+const showInfo = message => iziToast.info({ message, position: 'topRight' });
+
+const initLightbox = () => {
+  lightbox = new SimpleLightbox('.gallery-link', {
+    captionsData: 'alt',
+    captionDelay: 250,
+  });
+};
+
+const refreshLightbox = () => {
+  if (lightbox) {
+    lightbox.refresh();
+  }
+};
+
+const scrollToNextGroup = () => {
+  const firstCard = gallery.firstElementChild;
+  if (firstCard) {
+    const { height: cardHeight } = firstCard.getBoundingClientRect();
+    window.scrollBy({ top: cardHeight * 2, behavior: 'smooth' });
+  }
+};
+
+async function searchImg(event) {
+  event.preventDefault();
+  currentQuery = event.target.elements.search.value.trim();
+  currentPage = 1;
+
+  if (!currentQuery) {
+    showWarning('Warning! The form is empty, please fill searching form.');
+    form.reset();
     return;
   }
-  pixApi(search)
-    .then(data => {
-      const result = data.hits;
 
-      if (result.length !== 0) {
-        renderImages(result, list);
-      } else {
-        iziToast.show({
-          title: '',
-          message:
-            'Sorry, there are no images matching your search query. Please try again!',
-          messageColor: 'white',
-          backgroundColor: '#E25757',
-          position: 'topRight',
-        });
-      }
-    })
-    .catch(error => {
-      console.error(error.message);
-      iziToast.show({
-        title: '',
-        message: 'Sorry, check your internet connection!',
-        messageColor: 'white',
-        backgroundColor: '#E25757',
-        position: 'topRight',
-        timeout: 5000,
-      });
-    })
-    .finally(() => {
-      loader.style.visibility = 'hidden';
-      e.target.reset();
-    });
-});
+  clearGallery();
+  form.reset();
+  hideElement(btnMore);
+  showElement(loader);
+
+  try {
+    const data = await fetchImg(currentQuery, currentPage);
+
+    if (data.hits.length === 0) {
+      showError(
+        'Sorry, there are no images matching your search query. Please try again!'
+      );
+      return;
+    }
+
+    createGallery(data.hits);
+    if (data.hits.length === perPage) {
+      showElement(btnMore);
+    }
+
+    if (!lightbox) {
+      initLightbox();
+    } else {
+      refreshLightbox();
+    }
+  } catch (error) {
+    showError('Error!');
+  } finally {
+    hideElement(loader);
+  }
+}
+
+async function addMoreImg() {
+  currentPage += 1;
+  showElement(loader);
+
+  try {
+    const data = await fetchImg(currentQuery, currentPage);
+    const maxPage = Math.ceil(data.totalHits / perPage);
+
+    createGallery(data.hits);
+    refreshLightbox();
+    scrollToNextGroup();
+
+    if (currentPage === maxPage) {
+      showInfo("We're sorry, but you've reached the end of search results.");
+      hideElement(btnMore);
+    }
+  } catch (error) {
+    showError('Error!');
+  } finally {
+    hideElement(loader);
+  }
+}
+
+hideElement(loader);
+hideElement(btnMore);
+
+form.addEventListener('submit', searchImg);
+btnMore.addEventListener('click', addMoreImg);
